@@ -12,18 +12,19 @@ SUPPORTED_SITES = ["youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.co
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "مرحباً بك في بوت التحميل!\n\n"
-        "الأوامر المتاحة:\n"
-        "/start - بدء البوت\n"
-        "/help - المساعدة\n"
-        "/time - الوقت الحالي\n"
-        "/info - معلومات عنك\n"
-        "/ping - فحص البوت\n\n"
-        "أرسل رابط فيديو من:\n"
+        "مرحباً بك في بوت التحميل 🎬\n\n"
+        "📌 الوصف:\n"
+        "بوت متخصص في تحميل الفيديوهات من المواقع التالية:\n"
         "• يوتيوب\n"
         "• تيك توك\n"
-        "• تويتر / X\n"
-        "وأحمله لك بأعلى جودة ممكنة."
+        "• تويتر / X\n\n"
+        "✨ طريقة الاستخدام:\n"
+        "1. انسخ رابط الفيديو\n"
+        "2. أرسله هنا\n"
+        "3. انتظر قليلاً واستلم الفيديو بأعلى جودة متاحة\n\n"
+        "⚠️ ملاحظات:\n"
+        "- الفيديوهات الكبيرة جداً قد لا تُرسل بسبب حدود تليجرام\n"
+        "- استخدم البوت بشكل مسؤول"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
