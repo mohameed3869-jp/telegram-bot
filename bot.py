@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from datetime import datetime
 import yt_dlp
 
-TOKEN = "8645816933:AAFSuGTGLI-SeN4ticQDn9Yn1GlRXW_ckkA"
+TOKEN = "8645816933:AAHEaEqNsqFZYbEy05fWxOT3WvvO_JqKUt8"
 
 SUPPORTED_SITES = ["youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com"]
 
