@@ -5,8 +5,10 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from datetime import datetime
 import yt_dlp
-
-TOKEN = "8645816933:AAHEaEqNsqFZYbEy05fWxOT3WvvO_JqKUt8"
+ 8645816933:AAHeC-HBiO-VfCXsug7V01lDbQIfTImKRUo
+TOKEN = os.environ.get("TOKEN")
+if not TOKEN:
+    raise SystemExit("TOKEN env var is not set")
 
 SUPPORTED_SITES = ["youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com"]
 
