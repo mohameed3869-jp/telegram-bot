@@ -7,6 +7,8 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import yt_dlp
+
+TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
     raise SystemExit("TOKEN env var is not set")
 
