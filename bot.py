@@ -1,16 +1,22 @@
+import asyncio
+import logging
 import os
 import tempfile
-import asyncio
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from datetime import datetime
+
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import yt_dlp
 
-TOKEN = os.environ.get("TELEGRAM_TOKEN")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+TOKEN = os.environ.get("TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 if not TOKEN:
-    raise SystemExit("TELEGRAM_TOKEN env var is not set")
+    raise SystemExit("TOKEN env var is not set")
 
 SUPPORTED_SITES = ["youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com"]
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -29,6 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- استخدم البوت بشكل مسؤول"
     )
 
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "كيف تستخدم البوت:\n\n"
@@ -38,9 +45,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "ملاحظة: الفيديوهات الكبيرة جداً ممكن ما تنرسل بسبب حدود تليجرام."
     )
 
+
 async def time_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     await update.message.reply_text(f"الوقت الحالي: {now}")
+
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -51,17 +60,20 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"الآيدي: {user.id}"
     )
 
+
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("البوت شغال 100% ⚡")
 
+
 def is_supported_url(text: str) -> bool:
-    text = text.lower()
+    text = text.lower().strip()
     return any(site in text for site in SUPPORTED_SITES)
+
 
 def download_video(url: str):
     try:
-        temp_dir = tempfile.gettempdir()
-        output_template = os.path.join(temp_dir, "%(id)s.%(ext)s")
+        temp_dir = tempfile.mkdtemp(prefix="telegram_bot_")
+        output_template = os.path.join(temp_dir, "%(title)s.%(ext)s")
 
         ydl_opts = {
             "format": "best[ext=mp4]/best",
@@ -70,18 +82,38 @@ def download_video(url: str):
             "no_warnings": True,
             "noplaylist": True,
             "max_filesize": 49 * 1024 * 1024,
+            "socket_timeout": 30,
+            "retries": 2,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            return filename
-    except Exception as e:
-        print(f"خطأ في التحميل: {e}")
+            if not info:
+                return None
+
+            file_path = info.get("_filename") or ydl.prepare_filename(info)
+            if file_path and os.path.exists(file_path):
+                return file_path
+
+            for root, _, files in os.walk(temp_dir):
+                for filename in files:
+                    full_path = os.path.join(root, filename)
+                    if os.path.isfile(full_path):
+                        return full_path
+            return None
+    except yt_dlp.utils.DownloadError as exc:
+        logger.error("فشل تحميل الفيديو: %s", exc)
+        return None
+    except Exception as exc:
+        logger.exception("خطأ غير متوقع أثناء التحميل: %s", exc)
         return None
 
+
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
+    url = (update.message.text or "").strip()
+
+    if not url:
+        return
 
     if not is_supported_url(url):
         await update.message.reply_text("هذا الرابط مو مدعوم. أرسل رابط من يوتيوب أو تيك توك أو تويتر فقط.")
@@ -89,8 +121,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("جاري التحميل... انتظر قليلاً ⏳")
 
-    loop = asyncio.get_event_loop()
-    file_path = await loop.run_in_executor(None, download_video, url)
+    file_path = await asyncio.to_thread(download_video, url)
 
     if not file_path or not os.path.exists(file_path):
         await update.message.reply_text("فشل التحميل. جرب رابط ثاني أو تأكد إن الفيديو متاح.")
@@ -101,27 +132,50 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_video(
                 video=video,
                 caption="تم التحميل بنجاح ✅",
-                supports_streaming=True
+                supports_streaming=True,
             )
-    except Exception as e:
-        print(f"خطأ في الإرسال: {e}")
+    except Exception as exc:
+        logger.exception("خطأ في إرسال الفيديو: %s", exc)
         try:
             with open(file_path, "rb") as video:
                 await update.message.reply_document(
                     document=video,
-                    caption="تم التحميل (تم إرساله كملف)"
+                    caption="تم التحميل (تم إرساله كملف)",
                 )
-        except:
+        except Exception:
             await update.message.reply_text("حجم الفيديو كبير جداً وما قدر يرسله تليجرام.")
     finally:
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
-        except:
+        except Exception:
             pass
+
+        try:
+            temp_dir = os.path.dirname(file_path)
+            if temp_dir and os.path.isdir(temp_dir):
+                for root, dirs, files in os.walk(temp_dir, topdown=False):
+                    for filename in files:
+                        try:
+                            os.remove(os.path.join(root, filename))
+                        except Exception:
+                            pass
+                    for directory in dirs:
+                        try:
+                            os.rmdir(os.path.join(root, directory))
+                        except Exception:
+                            pass
+                try:
+                    os.rmdir(temp_dir)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("أرسل رابط فيديو من يوتيوب أو تيك توك أو تويتر عشان أحمله لك.")
+
 
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -133,8 +187,9 @@ def main():
     app.add_handler(CommandHandler("ping", ping))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
 
-    print("البوت يعمل...")
+    logger.info("البوت يعمل...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
